@@ -363,8 +363,8 @@ def Colorize_im(tens, num_cl_image):
 
     # for label in range(0, 11):
     for label in range(0, 14):
-        # a = torch.tensor(np.where(tens.cpu()[label] <= 0.2)).transpose(0, 1)
-        a = torch.tensor(np.where(tens.cpu()[label] <= 0.487)).transpose(0, 1)
+        a = torch.tensor(np.where(tens.cpu()[label] <= 0.23)).transpose(0, 1)
+        # a = torch.tensor(np.where(tens.cpu()[label] <= 0.487)).transpose(0, 1)
         # print(f'label{label} (min/max/mean): ', tens.cpu()[label].min(), tens.cpu()[label].max(), tens.cpu()[label].mean())
         # print(f'label {label} :', a.size())
         for coord in a:
