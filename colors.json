@@ -1,0 +1,103 @@
+{
+  "Background": [
+    255,
+    255,
+    255
+  ],
+  "Entrance": [
+    255,
+    0,
+    0
+  ],
+  "Window": [
+    255,
+    0,
+    102
+  ],
+  "Dead space": [
+    0,
+    255,
+    255
+  ],
+  "Corridor": [
+    255,
+    255,
+    0
+  ],
+  "Living room": [
+    128,
+    128,
+    128
+  ],
+  "Kitchen": [
+    20,
+    74,
+    25
+  ],
+  "Sanitary": [
+    51,
+    255,
+    0
+  ],
+  "Storage": [
+    204,
+    0,
+    255
+  ],
+
+  "pillars": [
+    255,
+    153,
+    0
+  ],
+  "Bed Room 1": [
+    0,
+    0,
+    255
+  ],
+  "Bed Room 2": [
+    0,
+    12,
+    102
+  ],
+  "Bed Room 3": [
+    24,
+    154,
+    180
+  ],
+  "Bed Room 4": [
+    177,
+    212,
+    224
+  ],
+  "Fridge Holder": [
+    40,
+    40,
+    40
+  ],  
+  "Kitchen Counter": [
+    0,
+    0,
+    0
+  ],  
+  "Bath Tub": [
+    20,
+    80,
+    90
+  ],  
+  "Washing Basin": [
+    45,
+    25,
+    45
+  ],  
+  "Washing Machine Holder": [
+    80,
+    80,
+    20
+  ],  
+  "Toilet Bowl": [
+    100,
+    15,
+    35
+  ]
+}
