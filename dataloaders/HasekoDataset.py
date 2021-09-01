@@ -186,8 +186,8 @@ class HasekoDataset(torch.utils.data.Dataset):  # with some facilities in alpha 
         label[label == 255] = 1  # White, Background
         label[label == 0] = 2  # Black, footprint
         label[label == 166] = 3  # Orange, pillars
-        label[label == 88] = 4  # Entrance
-        label[label == 76] = 5  # Window
+        label[label == 88] = 4  # Pink, Window
+        label[label == 76] = 5  # Red, Entrance
 
         return {"image": image2/510, "label": label, "name": self.images[idx]}  # range: 0.5 (white background) / 0.251 (apartment shape) / 0 (room)
         # return {"image": image2/256, "label": label, "name": self.images[idx]}  # the range is now: 0.996 (white background) / 0.5 (apartment shape)  / 0 (room)
