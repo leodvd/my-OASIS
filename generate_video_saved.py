@@ -65,8 +65,7 @@ for i, data_i in enumerate(dataloader_val):
 
         fig = plt.figure()
         for i in range(len(generated)):
-            # im = utils.tens_to_im(generated[i], num_cl_image)
-            im = utils.tens_to_im(generated[i], label[i], num_cl_image)  # i changed this line (to add the label)
+            im = utils.tens_to_im(generated[i], num_cl_image)
 
             plt.axis("off")
             fig.add_subplot(3, 4, i + 1)
