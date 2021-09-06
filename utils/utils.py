@@ -209,11 +209,13 @@ class image_saver():  # used in train.py
 
     def visualize_batch(self, model, image, label, cur_iter):
         self.save_images(label, "label", cur_iter, is_label=True)
+
         # self.save_images(image, "real", cur_iter)
         self.save_images(image, "real", cur_iter, label_to_pick_info_from=label)
         with torch.no_grad():
             model.eval()
             fake = model.module.netG(label)
+
             # self.save_images(fake, "fake", cur_iter)
             self.save_images(fake, "fake", cur_iter, label_to_pick_info_from=label)
             model.train()
@@ -322,9 +324,9 @@ def Colorize_im(tens, label_tens, num_cl_image):   # (mine, with pieces of furni
                 7: 'Bath Tub',
                 8: 'Washing Basin',
                 9: 'Washing Machine Holder',
-                10: 'Fridge Holder',
-                11: 'Kitchen Counter',
-                12: 'Toilet Bowl'
+                # 10: 'Fridge Holder',
+                # 11: 'Kitchen Counter',
+                # 12: 'Toilet Bowl'
                 }
     label_channels = {1: 'Background',
                       2: 'Footprint',
@@ -337,17 +339,35 @@ def Colorize_im(tens, label_tens, num_cl_image):   # (mine, with pieces of furni
 
     size = tens.size()
     color_image = torch.ByteTensor(3, size[1], size[2]).fill_(255)
+    # print(tens.shape)
 
     # px_rejected_from_threshold = (tens <= 0.21).sum(dim=0) == 0  # pixels without any channel having a strong enough (ie low enough) value. These pixels will remain white
-    tens = torch.argmin(tens, dim=0, keepdim=True)   # Compute argmin normally
+    # tens = torch.argmin(tens, dim=0, keepdim=True)   # Compute argmin normally
     # tens = torch.where(px_rejected_from_threshold, torch.zeros_like(tens), tens)  # relabel rejected pixels as 0, ie background label (so that they endup white)
-    for label in range(0, len(channels)):
-        mask = (label == tens[0]).cpu()
+
+    tens_min = torch.argmin(tens[:len(channels)-3], dim=0, keepdim=True)   # Compute argmin normally (on the room channels)
+
+    furniture_min = torch.argmin(tens[len(channels)-3:], dim=0, keepdim=True) + len(channels) - 3   # (on the furniture channels)
+    # print('min: ', furniture_min.min(), '  max: ', furniture_min.max())
+    furniture_threshold = 0.21
+    furniture_px_rejected_from_threshold = (tens[len(channels)-3:] <= furniture_threshold).sum(dim=0) == 0  # pixels without any channel having a strong enough (ie low enough) value. These pixels will remain white
+    furniture_min = torch.where(furniture_px_rejected_from_threshold, torch.zeros_like(furniture_min), furniture_min)  # relabel rejected pixels as 0
+
+    # for label in range(0, len(channels)):
+    for label in range(0, len(channels)-3):   # taking the strongest room from the room layers
+        # mask = (label == tens[0]).cpu()
+        mask = (label == tens_min[0]).cpu()
         color_image[0][mask] = colors[channels[label]][0]
         color_image[1][mask] = colors[channels[label]][1]
         color_image[2][mask] = colors[channels[label]][2]
 
-    label_tens = torch.argmax(label_tens, dim=0, keepdim=True)
+    for label in range(len(channels) - 3, len(channels)):   # taking the strongest furniture (after thresholding the weak ones) from the furniture layers
+        mask = (label == furniture_min[0]).cpu()
+        color_image[0][mask] = colors[channels[label]][0]
+        color_image[1][mask] = colors[channels[label]][1]
+        color_image[2][mask] = colors[channels[label]][2]
+
+    label_tens = torch.argmax(label_tens, dim=0, keepdim=True)   # pasting the rooms and background available in the input label on top of the output
     for label in range(1, 6):
         if label != 2:
             mask = (label == label_tens[0]).cpu()
