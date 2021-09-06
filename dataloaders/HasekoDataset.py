@@ -50,9 +50,9 @@ class HasekoDataset(torch.utils.data.Dataset):  # with some facilities in alpha 
                              'Bath Tub': 7,
                              'Washing Basin': 8,
                              'Washing Machine Holder': 9,
-                             'Fridge Holder': 10,
-                             'Kitchen Counter': 11,
-                             'Toilet Bowl': 12
+                             # 'Fridge Holder': 10,
+                             # 'Kitchen Counter': 11,
+                             # 'Toilet Bowl': 12
                              }
 
         # Find out how many layers we have
@@ -86,16 +86,23 @@ class HasekoDataset(torch.utils.data.Dataset):  # with some facilities in alpha 
         return len(self.images)
 
     def __getitem__(self, idx):
-        image = Image.open(os.path.join(self.paths[0], self.images[idx])).convert('RGBA')
+        image_rgb = Image.open(os.path.join(self.paths[0], self.images[idx])).convert('RGB')
+        image_rgba = Image.open(os.path.join(self.paths[0], self.images[idx])).convert('RGBA')
         label = Image.open(os.path.join(self.paths[1], self.labels[idx])).convert('L')
 
-        image, label = self.transforms(image, label)
-        image = image * 255
+        # image, label = self.transforms(image_rgb, label)
+        image_rgb, label, image_rgba = self.transforms_2im(image_rgb, label, image_rgba)
+        image_rgb = image_rgb * 255
         label = label * 255
+        image_rgba = image_rgba * 255
 
-        image = image.to('cpu').detach().numpy().copy().transpose((1, 2, 0))
-        image_rgb = image[:, :, :3]  # [:3] to get just the 3 RGB channels
-        image_alpha_chan = image[:, :, 3:]
+        image_rgb = image_rgb.to('cpu').detach().numpy().copy().transpose((1, 2, 0))
+        image_rgba = image_rgba.to('cpu').detach().numpy().copy().transpose((1, 2, 0))
+        image_alpha_chan = image_rgba[:, :, 3:]
+        # todo: put back the following 3 instead of the previous 1
+        # image= image.to('cpu').detach().numpy().copy().transpose((1, 2, 0))
+        # image_rgb = image[:, :, :3]  # [:3] to get just the 3 RGB channels
+        # image_alpha_chan = image[:, :, 3:]
 
         # mask = (127 == image[:, :, 3])
         # print('mask: ', image_rgb[mask])
@@ -172,12 +179,12 @@ class HasekoDataset(torch.utils.data.Dataset):  # with some facilities in alpha 
         for coord in torch.tensor(np.where((image_alpha_chan == 129).all(axis=-1))).numpy().transpose():  # Washing Machine Holder
             image2[9, coord[0], coord[1]] = room_seg_value
 
-        for coord in torch.tensor(np.where((image_alpha_chan == 125).all(axis=-1))).numpy().transpose():  # Fridge Holder
-            image2[10, coord[0], coord[1]] = room_seg_value
-        for coord in torch.tensor(np.where((image_alpha_chan == 126).all(axis=-1))).numpy().transpose():  # Kitchen Counter
-            image2[11, coord[0], coord[1]] = room_seg_value
-        for coord in torch.tensor(np.where((image_alpha_chan == 130).all(axis=-1))).numpy().transpose():  # Toilet Bowl
-            image2[12, coord[0], coord[1]] = room_seg_value
+        # for coord in torch.tensor(np.where((image_alpha_chan == 125).all(axis=-1))).numpy().transpose():  # Fridge Holder
+        #     image2[10, coord[0], coord[1]] = room_seg_value
+        # for coord in torch.tensor(np.where((image_alpha_chan == 126).all(axis=-1))).numpy().transpose():  # Kitchen Counter
+        #     image2[11, coord[0], coord[1]] = room_seg_value
+        # for coord in torch.tensor(np.where((image_alpha_chan == 130).all(axis=-1))).numpy().transpose():  # Toilet Bowl
+        #     image2[12, coord[0], coord[1]] = room_seg_value
 
         # for i in range(11):
         #     print(f'image2[{i}] (min/max/mean): ', image2[i].min(), image2[i].max(), image2[i].mean())
@@ -237,6 +244,45 @@ class HasekoDataset(torch.utils.data.Dataset):  # with some facilities in alpha 
         # normalize
         # image = TR.functional.normalize(image, (0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         return image, label
+
+    def transforms_2im(self, image, label, image2):
+        assert image.size == label.size
+        # resize
+        new_width, new_height = (self.opt.load_size, self.opt.load_size)
+        image = TR.functional.resize(image, (new_width, new_height), Image.NEAREST)
+        label = TR.functional.resize(label, (new_width, new_height), Image.NEAREST)
+        # crop
+        crop_x = random.randint(0, np.maximum(0, new_width - self.opt.crop_size))
+        crop_y = random.randint(0, np.maximum(0, new_height - self.opt.crop_size))
+        image = image.crop((crop_x, crop_y, crop_x + self.opt.crop_size, crop_y + self.opt.crop_size))
+        label = label.crop((crop_x, crop_y, crop_x + self.opt.crop_size, crop_y + self.opt.crop_size))
+        if image2 is not None:
+            image2 = TR.functional.resize(image2, (new_width, new_height), Image.NEAREST)
+            image2 = image2.crop((crop_x, crop_y, crop_x + self.opt.crop_size, crop_y + self.opt.crop_size))
+        # flip
+        if not (self.opt.phase == "test" or self.opt.no_flip or self.for_metrics):
+            if random.random() < 0.5:
+                image = TR.functional.hflip(image)
+                label = TR.functional.hflip(label)
+                if image2 is not None:
+                    image2 = TR.functional.hflip(image2)
+            if random.random() < 0.5:
+                image = TR.functional.vflip(image)
+                label = TR.functional.vflip(label)
+                if image2 is not None:
+                    image2 = TR.functional.vflip(image2)
+            # if True:
+            #     angle = random.choice(self.angles)
+
+            #     image = TR.functional.rotate(image, angle, fill=(255,255,255))
+            #     label = TR.functional.rotate(label, angle, fill=(255,))
+        # to tensor
+        image = TR.functional.to_tensor(image)
+        label = TR.functional.to_tensor(label)
+        image2 = TR.functional.to_tensor(image2)
+        # normalize
+        # image = TR.functional.normalize(image, (0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        return image, label, image2
 
 
 # class HasekoDataset(torch.utils.data.Dataset):   # dataloader for dataset9 / dataset10 (same images but more rooms) / BIM data (nenw images, with more room types and sometimes different colors)
