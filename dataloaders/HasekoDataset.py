@@ -42,14 +42,16 @@ class HasekoDataset(torch.utils.data.Dataset):  # with some facilities in alpha 
                              'Living room': 2,
                              'Kitchen': 3,
                              'Sanitary': 4,
-                             'Storage': 5,
-                             'Bed Room 1': 6,
-                             'Bed Room 2': 6,
-                             'Bed Room 3': 6,
-                             'Bed Room 4': 6,
-                             'Bath Tub': 7,
-                             'Washing Basin': 8,
-                             'Washing Machine Holder': 9,
+                             'Toilets': 5,
+                             'Bathroom': 6,
+                             'Storage': 7,
+                             'Bed Room 1': 8,
+                             'Bed Room 2': 8,
+                             'Bed Room 3': 8,
+                             'Bed Room 4': 8,
+                             'Bath Tub': 9,
+                             'Washing Basin': 10,
+                             'Washing Machine Holder': 11,
                              # 'Fridge Holder': 10,
                              # 'Kitchen Counter': 11,
                              # 'Toilet Bowl': 12
@@ -70,7 +72,7 @@ class HasekoDataset(torch.utils.data.Dataset):  # with some facilities in alpha 
         opt.label_nc = 5
         opt.contain_dontcare_label = True
         opt.semantic_nc = 6  # label_nc + unknown. Amount of layers in the input label map (black, pillars, entrance, window, white background)
-        opt.semantic_nc_image = n_layer + 1  # n_layers + unknown. Amount of layers in the target label map   # todo: why + 1 ???
+        opt.semantic_nc_image = n_layer + 1  # n_layers + unknown. Amount of layers in the target label map
         opt.cache_filelist_read = False
         opt.cache_filelist_write = False
         opt.aspect_ratio = 1.0
@@ -109,11 +111,14 @@ class HasekoDataset(torch.utils.data.Dataset):  # with some facilities in alpha 
 
         _, h, w = label.size()
 
-        # image2 = torch.full(fill_value=255, size=(self.opt.semantic_nc_image, h, w))  # todo: try again to replace the following 4 lines by this one fot ablation test of the footprint-shaped background
+        # image2 = torch.full(fill_value=255, size=(self.opt.semantic_nc_image, h, w))  # todo: replace the following 4 lines by this one for ablation test of the footprint-shaped background
         image2 = torch.empty(self.opt.semantic_nc_image, h, w)
         for i in range(self.opt.semantic_nc_image):
             image2[i] = copy.deepcopy(label[0])
-        image2[image2 < 254] = 128  # 85     (the background is a white 255 already, and it puts all where there is content - the footprint - at 128)
+        # image2[image2 < 254] = 127   # 191   (the background is a white 255 already, and it puts all where there is content - the footprint - at 128)
+        # todo: change the above line to keep just the footprint as a background (value == 0) with the following:
+        image2[image2 > 1] = 255
+        image2[image2 <= 1] = 191
 
         room_seg_value = 0
 
@@ -143,27 +148,35 @@ class HasekoDataset(torch.utils.data.Dataset):  # with some facilities in alpha 
 
         for coord in torch.tensor(np.where((image_rgb == (51, 255, 0)).all(axis=-1))).numpy().transpose():  # Sanitary (Sanitary) (bright green)
             image2[4, coord[0], coord[1]] = room_seg_value
-        for coord in torch.tensor(np.where((image_rgb == (136, 0, 21)).all(axis=-1))).numpy().transpose():  # Sanitary (Toilettes) (burgundy)
-            image2[4, coord[0], coord[1]] = room_seg_value
+        # for coord in torch.tensor(np.where((image_rgb == (136, 0, 21)).all(axis=-1))).numpy().transpose():  # Sanitary (Toilettes) (burgundy)
+        #     image2[4, coord[0], coord[1]] = room_seg_value
+        # for coord in torch.tensor(np.where((image_rgb == (34, 177, 76)).all(axis=-1))).numpy().transpose():  # Sanitary (Bathroom) (chlorophile medium green)
+        #     image2[4, coord[0], coord[1]] = room_seg_value
+        for coord in torch.tensor(np.where((image_rgb == (136, 0, 21)).all(axis=-1))).numpy().transpose():  # Sanitary (Toilets) (burgundy)
+            image2[5, coord[0], coord[1]] = room_seg_value
         for coord in torch.tensor(np.where((image_rgb == (34, 177, 76)).all(axis=-1))).numpy().transpose():  # Sanitary (Bathroom) (chlorophile medium green)
-            image2[4, coord[0], coord[1]] = room_seg_value
+            image2[6, coord[0], coord[1]] = room_seg_value
 
+        # for coord in torch.tensor(np.where((image_rgb == (204, 0, 255)).all(axis=-1))).numpy().transpose():  # Storage  (bright pink)
+        #     image2[5, coord[0], coord[1]] = room_seg_value
+        # for coord in torch.tensor(np.where((image_rgb == (213, 45, 247)).all(axis=-1))).numpy().transpose():  # Storage  (bright pink) (BIM)
+        #     image2[5, coord[0], coord[1]] = room_seg_value
         for coord in torch.tensor(np.where((image_rgb == (204, 0, 255)).all(axis=-1))).numpy().transpose():  # Storage  (bright pink)
-            image2[5, coord[0], coord[1]] = room_seg_value
+            image2[7, coord[0], coord[1]] = room_seg_value
         for coord in torch.tensor(np.where((image_rgb == (213, 45, 247)).all(axis=-1))).numpy().transpose():  # Storage  (bright pink) (BIM)
-            image2[5, coord[0], coord[1]] = room_seg_value
+            image2[7, coord[0], coord[1]] = room_seg_value
 
         # for coord in torch.tensor(np.where((image_rgb == (255, 153, 0)).all(axis=-1))).numpy().transpose():  # pillars (orange)
         #     image2[9, coord[0], coord[1]] = room_seg_value
 
         for coord in torch.tensor(np.where((image_rgb == (0, 0, 255)).all(axis=-1))).numpy().transpose():  # Bed Room 1
-            image2[6, coord[0], coord[1]] = room_seg_value
+            image2[8, coord[0], coord[1]] = room_seg_value
         for coord in torch.tensor(np.where((image_rgb == (0, 12, 102)).all(axis=-1))).numpy().transpose():  # Bed Room 2
-            image2[6, coord[0], coord[1]] = room_seg_value
+            image2[8, coord[0], coord[1]] = room_seg_value
         for coord in torch.tensor(np.where((image_rgb == (24, 154, 180)).all(axis=-1))).numpy().transpose():  # Bed Room 3
-            image2[6, coord[0], coord[1]] = room_seg_value
+            image2[8, coord[0], coord[1]] = room_seg_value
         for coord in torch.tensor(np.where((image_rgb == (177, 212, 224)).all(axis=-1))).numpy().transpose():  # Bed Room 4
-            image2[6, coord[0], coord[1]] = room_seg_value
+            image2[8, coord[0], coord[1]] = room_seg_value
         # for coord in torch.tensor(np.where((image == (0, 12, 102)).all(axis=-1))).numpy().transpose():  # Bed Room 2
         #     image2[11, coord[0], coord[1]] = room_seg_value
         # for coord in torch.tensor(np.where((image == (24, 154, 180)).all(axis=-1))).numpy().transpose():  # Bed Room 3
@@ -173,11 +186,11 @@ class HasekoDataset(torch.utils.data.Dataset):  # with some facilities in alpha 
 
         # facilities:
         for coord in torch.tensor(np.where((image_alpha_chan == 127).all(axis=-1))).numpy().transpose():  # Bath Tub
-            image2[7, coord[0], coord[1]] = room_seg_value
-        for coord in torch.tensor(np.where((image_alpha_chan == 128).all(axis=-1))).numpy().transpose():  # Washing Basin
-            image2[8, coord[0], coord[1]] = room_seg_value
-        for coord in torch.tensor(np.where((image_alpha_chan == 129).all(axis=-1))).numpy().transpose():  # Washing Machine Holder
             image2[9, coord[0], coord[1]] = room_seg_value
+        for coord in torch.tensor(np.where((image_alpha_chan == 128).all(axis=-1))).numpy().transpose():  # Washing Basin
+            image2[10, coord[0], coord[1]] = room_seg_value
+        for coord in torch.tensor(np.where((image_alpha_chan == 129).all(axis=-1))).numpy().transpose():  # Washing Machine Holder
+            image2[11, coord[0], coord[1]] = room_seg_value
 
         # for coord in torch.tensor(np.where((image_alpha_chan == 125).all(axis=-1))).numpy().transpose():  # Fridge Holder
         #     image2[10, coord[0], coord[1]] = room_seg_value
@@ -322,7 +335,7 @@ class HasekoDataset(torch.utils.data.Dataset):  # with some facilities in alpha 
 #         opt.label_nc = 5
 #         opt.contain_dontcare_label = True
 #         opt.semantic_nc = 6  # label_nc + unknown. Amount of layers in the input label map (black, pillars, entrance, window, white background)
-#         opt.semantic_nc_image = n_layer + 1  # n_layers + unknown. Amount of layers in the target label map   # todo: why + 1 ???
+#         opt.semantic_nc_image = n_layer + 1  # n_layers + unknown. Amount of layers in the target label map
 #         opt.cache_filelist_read = False
 #         opt.cache_filelist_write = False
 #         opt.aspect_ratio = 1.0
