@@ -46,6 +46,7 @@ class results_saver():  # used in test.py
             # self.save_im(im, "label", name[i])
             # im = tens_to_im(generated[i]) * 255
             # self.save_im(im, "image", name[i])
+
             self.save_trio(label[i], generated[i], image[i], name[i])
 
     # def save_im(self, im, mode, name):
@@ -53,18 +54,23 @@ class results_saver():  # used in test.py
     #     im.save(os.path.join(self.path_to_save[mode], name.split("/")[-1]).replace('.jpg', '.png'))
 
     def save_trio(self, label, fake, image, name):
-        fig = plt.figure()
+        # fig = plt.figure(figsize=(3, 1), dpi=512, frameon=False)
+        fig = plt.figure(figsize=(3, 1), dpi=256)   # todo: put this back to save in the true size
+
         imgs = [label, fake, image]
         for i in range(3):
             if i == 0:
                 im = tens_to_lab(imgs[i], self.num_cl)
             else:
-                im = tens_to_im(imgs[i], self.num_cl_image)
-            plt.axis("off")
+                # im = tens_to_im(imgs[i], self.num_cl_image)  # set back if not using labels to make the final image
+                im = tens_to_im(imgs[i], imgs[0], self.num_cl_image)
+            # plt.axis("off")
             fig.add_subplot(1, 3, i + 1)
             plt.axis("off")
+            plt.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
             plt.imshow(im)
-        fig.tight_layout()
+
+        # fig.tight_layout()
         plt.savefig(os.path.join(self.path, name))
         plt.close()
 
@@ -212,6 +218,7 @@ class image_saver():  # used in train.py
 
         # self.save_images(image, "real", cur_iter)
         self.save_images(image, "real", cur_iter, label_to_pick_info_from=label)
+
         with torch.no_grad():
             model.eval()
             fake = model.module.netG(label)
@@ -223,23 +230,25 @@ class image_saver():  # used in train.py
             if not self.opt.no_EMA:
                 model.eval()
                 fake = model.module.netEMA(label)
-                self.save_images(fake, "fake_ema", cur_iter)
+                self.save_images(fake, "fake_ema", cur_iter, label_to_pick_info_from=label)
                 model.train()
 
     # def save_images(self, batch, name, cur_iter, is_label=False):
     def save_images(self, batch, name, cur_iter, is_label=False, label_to_pick_info_from=None):
-        fig = plt.figure()
+        # fig = plt.figure()
+        fig = plt.figure(figsize=(self.cols, self.rows), dpi=256, frameon=False)   # i changed this line to set the figure to the right size
         for i in range(min(self.rows * self.cols, len(batch))):
             if is_label:
                 im = tens_to_lab(batch[i], self.num_cl)
             else:
                 # im = tens_to_im(batch[i], self.num_cl_image)
                 im = tens_to_im(batch[i], label_to_pick_info_from[i], self.num_cl_image)
-            plt.axis("off")
+            # plt.axis("off")
             fig.add_subplot(self.rows, self.cols, i + 1)
             plt.axis("off")
+            plt.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)   # i added this to remove any gaps and borders
             plt.imshow(im)
-        fig.tight_layout()
+        # fig.tight_layout()        # i removed this
         plt.savefig(self.path + str(cur_iter) + "_" + name)
         plt.close()
 
@@ -325,14 +334,10 @@ def Colorize_im(tens, label_tens, num_cl_image):   # (mine, with pieces of furni
                 8: 'Bed Room 1',
                 9: 'Bath Tub',
                 10: 'Washing Basin',
-                11: 'Washing Machine Holder'
-                # 5: 'Storage',
-                # 6: 'Bed Room 1',
-                # 7: 'Bath Tub',
-                # 8: 'Washing Basin',
-                # 9: 'Washing Machine Holder',
-                # 10: 'Fridge Holder',
-                # 11: 'Kitchen Counter',
+                11: 'Washing Machine Holder',
+                12: 'Uncertain Pixels'   # i added this, it is to be kept as the last number
+                # 13: 'Fridge Holder',
+                # 15: 'Kitchen Counter',
                 # 12: 'Toilet Bowl'
                 }
     label_channels = {1: 'Background',
@@ -348,31 +353,58 @@ def Colorize_im(tens, label_tens, num_cl_image):   # (mine, with pieces of furni
     color_image = torch.ByteTensor(3, size[1], size[2]).fill_(255)
     # print(tens.shape)
 
-    # px_rejected_from_threshold = (tens <= 0.21).sum(dim=0) == 0  # pixels without any channel having a strong enough (ie low enough) value. These pixels will remain white
-    # tens = torch.argmin(tens, dim=0, keepdim=True)   # Compute argmin normally
-    # tens = torch.where(px_rejected_from_threshold, torch.zeros_like(tens), tens)  # relabel rejected pixels as 0, ie background label (so that they endup white)
-
-    tens_min = torch.argmin(tens[:len(channels)-3], dim=0, keepdim=True)   # Compute argmin normally (on the room channels)
-
-    furniture_min = torch.argmin(tens[len(channels)-3:], dim=0, keepdim=True) + len(channels) - 3   # (on the furniture channels)
+    # tens_min = torch.argmin(tens[:len(channels)-3], dim=0, keepdim=True)   # Compute argmin (on the room channels only)
+    # furniture_min = torch.argmin(tens[len(channels)-3:], dim=0, keepdim=True) + len(channels) - 3   # (on the furniture channels)
+    tens_min = torch.argmin(tens[:len(channels)-4], dim=0, keepdim=True)   # Compute argmin (on the room channels only)
+    furniture_min = torch.argmin(tens[len(channels)-4:], dim=0, keepdim=True) + len(channels) - 4   # (on the furniture channels)
     # print('min: ', furniture_min.min(), '  max: ', furniture_min.max())
-    furniture_threshold = 0.21
-    furniture_px_rejected_from_threshold = (tens[len(channels)-3:] <= furniture_threshold).sum(dim=0) == 0  # pixels without any channel having a strong enough (ie low enough) value. These pixels will remain white
+
+    # todo: set back:
+    # # setting a threshold (minimum level) rooms need to meet if they "really want to appear":     # todo: remove 3 next lines to compute only argmin (with no threshold on the rooms)
+    # room_threshold = 0.2
+    # # px_rejected_from_threshold = (tens[:len(channels)-3] <= room_threshold).sum(dim=0) == 0  # pixels without any channel having a strong enough (ie low enough) value. These pixels will remain white
+    # # tens_min = torch.where(px_rejected_from_threshold, torch.zeros_like(tens_min), tens_min)  # relabel rejected pixels as 0, ie background label (so that they endup white)
+    # px_rejected_from_threshold = (tens[:len(channels)-4] <= room_threshold).sum(dim=0) == 0  # pixels without any channel having a strong enough (ie low enough) value. These pixels will remain white
+    # tens_min = torch.where(px_rejected_from_threshold, torch.ones_like(tens_min)*(len(channels)-1), tens_min)  # relabel rejected pixels as 0, ie background label (so that they endup white)
+
+    # todo: set back:
+    # # setting a minimum gap between the rooms that wants to appear the strongest and the 2nd one:
+    # # min_tensor, _ = torch.min(tens[:len(channels)-3], dim=0)
+    # min_tensor, _ = torch.min(tens[:len(channels)-4], dim=0)
+    # # print("\nmin_tensor:\n", min_tensor)
+    # gap_value = torch.ones_like(min_tensor) * 0.1  # gap: 0.1 or 0.2
+    # gap_threshold = min_tensor + gap_value
+    # # px_in_a_fight = (tens[:len(channels)-3] <= gap_threshold).sum(dim=0) >= 2
+    # # tens_min = torch.where(px_in_a_fight, torch.zeros_like(tens_min), tens_min)  # relabel rejected pixels as 0, ie background label (so that they endup white)
+    # px_in_a_fight = (tens[:len(channels)-4] <= gap_threshold).sum(dim=0) >= 2
+    # tens_min = torch.where(px_in_a_fight, torch.ones_like(tens_min)*(len(channels)-1), tens_min)  # relabel rejected pixels as 0, ie background label (so that they endup white)
+
+    # # setting a threshold (minimum level) furniture need to meet to appear:
+    furniture_threshold = 0.2
+    # furniture_px_rejected_from_threshold = (tens[len(channels)-3:] <= furniture_threshold).sum(dim=0) == 0  # pixels without any channel having a strong enough (ie low enough) value. These pixels will remain white
+    furniture_px_rejected_from_threshold = (tens[len(channels)-4:len(channels)-1] <= furniture_threshold).sum(dim=0) == 0  # pixels without any channel having a strong enough (ie low enough) value. These pixels will remain white
     furniture_min = torch.where(furniture_px_rejected_from_threshold, torch.zeros_like(furniture_min), furniture_min)  # relabel rejected pixels as 0
 
     # for label in range(0, len(channels)):
-    for label in range(0, len(channels)-3):   # taking the strongest room from the room layers
+    # for label in range(0, len(channels)-3):   # taking the strongest room from the room layers
+    for label in range(0, len(channels)-4):   # taking the strongest room from the room layers
         # mask = (label == tens[0]).cpu()
         mask = (label == tens_min[0]).cpu()
         color_image[0][mask] = colors[channels[label]][0]
         color_image[1][mask] = colors[channels[label]][1]
         color_image[2][mask] = colors[channels[label]][2]
 
-    for label in range(len(channels) - 3, len(channels)):   # taking the strongest furniture (after thresholding the weak ones) from the furniture layers
+    # for label in range(len(channels) - 3, len(channels)):   # taking the strongest furniture (after thresholding the weak ones) from the furniture layers
+    for label in range(len(channels) - 4, len(channels) - 1):   # taking the strongest furniture (after thresholding the weak ones) from the furniture layers
         mask = (label == furniture_min[0]).cpu()
         color_image[0][mask] = colors[channels[label]][0]
         color_image[1][mask] = colors[channels[label]][1]
         color_image[2][mask] = colors[channels[label]][2]
+
+    uncertain_pixels_mask = (len(channels)-1 == tens_min[0]).cpu()  # painting the uncertain pixels
+    color_image[0][uncertain_pixels_mask] = colors[channels[len(channels)-1]][0]
+    color_image[1][uncertain_pixels_mask] = colors[channels[len(channels)-1]][1]
+    color_image[2][uncertain_pixels_mask] = colors[channels[len(channels)-1]][2]
 
     label_tens = torch.argmax(label_tens, dim=0, keepdim=True)   # pasting the rooms and background available in the input label on top of the output
     for label in range(1, 6):
