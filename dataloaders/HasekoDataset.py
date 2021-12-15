@@ -64,11 +64,15 @@ class HasekoDataset(torch.utils.data.Dataset):  # with some facilities in alpha 
                 n_layer = v
         n_layer += 1
 
-        if opt.phase == "test" or for_metrics:
-            opt.load_size = 128
-        else:
-            opt.load_size = 128
-        opt.crop_size = 128
+        # if opt.phase == "test" or for_metrics:
+        #     opt.load_size = 128
+        # else:
+        #     opt.load_size = 128
+        # opt.crop_size = 128
+        # opt.load_size = 256
+        # opt.crop_size = 256
+        opt.load_size = opt.im_size
+        opt.crop_size = opt.im_size
         opt.label_nc = 5
         opt.contain_dontcare_label = True
         opt.semantic_nc = 6  # label_nc + unknown. Amount of layers in the input label map (black, pillars, entrance, window, white background)
@@ -101,7 +105,7 @@ class HasekoDataset(torch.utils.data.Dataset):  # with some facilities in alpha 
         image_rgb = image_rgb.to('cpu').detach().numpy().copy().transpose((1, 2, 0))
         image_rgba = image_rgba.to('cpu').detach().numpy().copy().transpose((1, 2, 0))
         image_alpha_chan = image_rgba[:, :, 3:]
-        # todo: put back the following 3 instead of the previous 1
+        # # somehow the following 3 lines don't work properly (which is why i import the images twice as above)
         # image= image.to('cpu').detach().numpy().copy().transpose((1, 2, 0))
         # image_rgb = image[:, :, :3]  # [:3] to get just the 3 RGB channels
         # image_alpha_chan = image[:, :, 3:]
@@ -117,8 +121,8 @@ class HasekoDataset(torch.utils.data.Dataset):  # with some facilities in alpha 
             image2[i] = copy.deepcopy(label[0])
         # image2[image2 < 254] = 127   # 191   (the background is a white 255 already, and it puts all where there is content - the footprint - at 128)
         # todo: change the above line to keep just the footprint as a background (value == 0) with the following:
-        image2[image2 > 1] = 255
-        image2[image2 <= 1] = 191
+        image2[image2 > 1] = 255   # background, pillars, window, entrance
+        image2[image2 <= 1] = 191  # footprint
 
         room_seg_value = 0
 
@@ -132,10 +136,10 @@ class HasekoDataset(torch.utils.data.Dataset):  # with some facilities in alpha 
         # for coord in torch.tensor(np.where((image_rgb == (255, 0, 100)).all(axis=-1))).numpy().transpose():  # Window (dark pink) (BIM)
         #     image2[2, coord[0], coord[1]] = room_seg_value
 
-        for coord in torch.tensor(np.where((image_rgb == (0, 255, 255)).all(axis=-1))).numpy().transpose():  # Dead Space (bright blue)
+        for coord in torch.tensor(np.where((image_rgb == (255, 255, 0)).all(axis=-1))).numpy().transpose():  # Dead Space (yellow)
             image2[0, coord[0], coord[1]] = room_seg_value
 
-        for coord in torch.tensor(np.where((image_rgb == (255, 255, 0)).all(axis=-1))).numpy().transpose():  # Corridor (yellow)
+        for coord in torch.tensor(np.where((image_rgb == (0, 255, 255)).all(axis=-1))).numpy().transpose():  # Corridor (bright blue)
             image2[1, coord[0], coord[1]] = room_seg_value
 
         for coord in torch.tensor(np.where((image_rgb == (128, 128, 128)).all(axis=-1))).numpy().transpose():  # Living room (medium grey)
@@ -209,6 +213,7 @@ class HasekoDataset(torch.utils.data.Dataset):  # with some facilities in alpha 
         label[label == 88] = 4  # Pink, Window
         label[label == 76] = 5  # Red, Entrance
 
+        # print('image size: ', image2.size())
         return {"image": image2/510, "label": label, "name": self.images[idx]}  # range: 0.5 (white background) / 0.251 (apartment shape) / 0 (room)
         # return {"image": image2/256, "label": label, "name": self.images[idx]}  # the range is now: 0.996 (white background) / 0.5 (apartment shape)  / 0 (room)
 
@@ -239,6 +244,7 @@ class HasekoDataset(torch.utils.data.Dataset):  # with some facilities in alpha 
         image = image.crop((crop_x, crop_y, crop_x + self.opt.crop_size, crop_y + self.opt.crop_size))
         label = label.crop((crop_x, crop_y, crop_x + self.opt.crop_size, crop_y + self.opt.crop_size))
         # flip
+        rotation = False
         if not (self.opt.phase == "test" or self.opt.no_flip or self.for_metrics):
             if random.random() < 0.5:
                 image = TR.functional.hflip(image)
@@ -246,11 +252,10 @@ class HasekoDataset(torch.utils.data.Dataset):  # with some facilities in alpha 
             if random.random() < 0.5:
                 image = TR.functional.vflip(image)
                 label = TR.functional.vflip(label)
-            # if True:
-            #     angle = random.choice(self.angles)
-
-            #     image = TR.functional.rotate(image, angle, fill=(255,255,255))
-            #     label = TR.functional.rotate(label, angle, fill=(255,))
+            if rotation:
+                angle = random.choice(self.angles)
+                image = TR.functional.rotate(image, angle, fill=(255, 255, 255))
+                label = TR.functional.rotate(label, angle, fill=(255,))
         # to tensor
         image = TR.functional.to_tensor(image)
         label = TR.functional.to_tensor(label)
@@ -272,8 +277,9 @@ class HasekoDataset(torch.utils.data.Dataset):  # with some facilities in alpha 
         if image2 is not None:
             image2 = TR.functional.resize(image2, (new_width, new_height), Image.NEAREST)
             image2 = image2.crop((crop_x, crop_y, crop_x + self.opt.crop_size, crop_y + self.opt.crop_size))
-        # flip
+        # flip     
         if not (self.opt.phase == "test" or self.opt.no_flip or self.for_metrics):
+            # todo: remove the following horizontal flips if training with all entrances on one side):
             if random.random() < 0.5:
                 image = TR.functional.hflip(image)
                 label = TR.functional.hflip(label)
